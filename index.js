@@ -27,7 +27,7 @@ client.on('messageCreate', async (message) => {
 
     const serverQueue = queue.get(message.guild.id);
 
-    if (command === 'p') {
+    if (command === 'p' || command === 'play') {
         const url = args[0];
         if (!url || !ytdl.validateURL(url)) {
             return message.channel.send('Por favor, forneça um link válido do YouTube!');
@@ -75,10 +75,10 @@ client.on('messageCreate', async (message) => {
             serverQueue.songs.push(song);
             return message.channel.send(`${song.title} foi adicionada à fila!`);
         }
-    } else if (command === 's') {
+    } else if (command === 's' || command === 'stop') {
         if (!serverQueue) return message.channel.send('Não há músicas na fila para pular!');
         serverQueue.player.stop();
-    } else if (command === 'q') {
+    } else if (command === 'q' || command === 'quit') {
         if (!serverQueue) return message.channel.send('Não há músicas para parar.');
         serverQueue.songs = [];
         serverQueue.player.stop();
