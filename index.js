@@ -1,7 +1,7 @@
 require('dotenv').config();
-const { Client, Intents, GatewayIntentBits } = require('discord.js');
+const { Client, GatewayIntentBits } = require('discord.js');
 const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus } = require('@discordjs/voice');
-const ytdl = require('ytdl-core');
+const playdl = require('play-dl');
 
 const client = new Client({
     intents: [
@@ -29,14 +29,14 @@ client.on('messageCreate', async (message) => {
 
     if (command === 'p' || command === 'play') {
         const url = args[0];
-        if (!url || !ytdl.validateURL(url)) {
+        if (!url || !playdl.yt_validate(url)) {
             return message.channel.send('Por favor, forneça um link válido do YouTube!');
         }
         
-        const songInfo = await ytdl.getInfo(url);
+        const songInfo = await playdl.video_basic_info(url);
         const song = {
-            title: songInfo.videoDetails.title,
-            url: songInfo.videoDetails.video_url,
+            title: songInfo.video_details.title,
+            url: songInfo.video_details.url,
         };
 
         if (!serverQueue) {
@@ -79,7 +79,7 @@ client.on('messageCreate', async (message) => {
         if (!serverQueue) return message.channel.send('Não há músicas na fila para pular!');
         serverQueue.player.stop();
     } else if (command === 'q' || command === 'quit') {
-        if (!serverQueue) return message.channel.send('Não há músicas para parar.');
+        if (!serverQueue) return message.channel.send('Serviço ja encerrado.');
         serverQueue.songs = [];
         serverQueue.player.stop();
         serverQueue.connection.destroy();
@@ -88,33 +88,55 @@ client.on('messageCreate', async (message) => {
     } else if (command === 'pause') {
         if (serverQueue.player.state.status === AudioPlayerStatus.Playing) {
             serverQueue.player.pause();
-            return message.channel.send('Para para para tudo!');//Música pausada
+            return message.channel.send('Para para para tudo!'); // Música pausada
         } else {
-            return message.channel.send('ta pausando oque fio?');//Não há música tocando para pausar.
+            return message.channel.send('ta pausando oque fio?'); // Não há música tocando para pausar.
         }
+    } else if (command === 'h' || command === 'help') {
+        // Novo comando !h
+        message.channel.send(`
+        **Ajuda - Comandos do RanMusic** 🎵
+        Aqui estão os comandos disponíveis para usar o bot:
+
+        **(play)!p <link do YouTube>** - Reproduz a música do link fornecido. Se já estiver tocando, adiciona a música à fila.
+        Exemplo: \`!p https://www.youtube.com/watch?v=dQw4w9WgXcQ\`
+
+        **(skyp)!s** - Pula para a próxima música na fila.
+        Exemplo: \`!s\`
+
+        **(quit)!q** - Encerra o serviço de música e faz o bot sair do canal de voz.
+        Exemplo: \`!q\`
+
+        **!pause** - Pausa a música atual. Use apenas quando algo estiver tocando.
+        Exemplo: \`!pause\`
+
+        **(help)!h** - Exibe esta mensagem de ajuda com todos os comandos disponíveis.
+        Exemplo: \`!h\`
+        
+        Aproveite a música! 🎶
+        `);
     }
 });
 
-function playSong(guild, song) {
+async function playSong(guild, song) {
     const serverQueue = queue.get(guild.id);
 
     if (!song) {
         serverQueue.timeout = setTimeout(() => {
             serverQueue.connection.destroy();
             queue.delete(guild.id);
-            serverQueue.textChannel.send('Mem deixarao sozinho.');//Saindo por inatividade
+            serverQueue.textChannel.send('Mem deixarao sozinho.'); // Saindo por inatividade
         }, 7 * 60 * 1000); // 7 minutos
         return;
     }
-    const stream = ytdl(song.url, {
-        filter: 'audioonly',
-        requestOptions: {
-            headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            },
-        },
-    });
-    const resource = createAudioResource(stream);
+
+    const stream = await playdl.stream(song.url);
+    console.log('Stream criado:', stream);
+
+    const resource = createAudioResource(stream.stream, { inputType: stream.type });
+    serverQueue.player.play(resource);
+    serverQueue.connection.subscribe(serverQueue.player);
+
 
     serverQueue.player.play(resource);
     serverQueue.connection.subscribe(serverQueue.player);
@@ -124,7 +146,7 @@ function playSong(guild, song) {
         playSong(guild, serverQueue.songs[0]);
     });
 
-    serverQueue.textChannel.send(`Playando: **${song.title}**`);//Tocando agora
+    serverQueue.textChannel.send(`Playando: **${song.title}**`); // Tocando agora
 }
 
 client.login(process.env.BOT_TOKEN);
